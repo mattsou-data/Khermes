@@ -1,0 +1,16 @@
+version: '3.3'
+services:
+    python:
+        build:
+          dockerfile: Dockerfile
+          context: .
+        restart: always
+        ports:
+            - '18018:18018'
+        container_name: kerma-python
+        image: python
+        environment:
+          - PYTHONUNBUFFERED=1
+        volumes:
+          - ./src:/app/src
+        working_dir: /app/src
