@@ -570,7 +570,8 @@ async def init():
         print("Open connections: {}".format(set(CONNECTIONS.keys())))
 
         # Open more connections if necessary
-        await resupply_connections()
+        asyncio.create_task(resupply_connections())
+        #await resupply_connections()
         await asyncio.sleep(const.SERVICE_LOOP_DELAY)
 
     await bootstrap_task
