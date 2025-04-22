@@ -1,0 +1,227 @@
+import json
+import sqlite3
+import main as m
+import objects as obj
+from message.msgexceptions import *
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization
+from jcs import canonicalize
+import copy
+import constants as const
+
+def create_transaction_coinbase(height,value):
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    pubkey = public_key.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw
+    ).hex()
+    pri_key = private_key.private_bytes( encoding=serialization.Encoding.Raw, format=serialization.PrivateFormat.Raw, encryption_algorithm=serialization.NoEncryption()).hex()
+    tx = {
+        "height": height,
+        "outputs": [
+            {
+                "pubkey": pubkey,
+                "value": value
+            }
+        ],
+        "type": "transaction"
+    }
+
+    obj_id = obj.get_objid(tx)
+
+    return tx, pri_key, obj_id
+
+
+def verify_tx_signature(tx_dict, sig, pubkey):
+    print(tx_dict)
+    print(sig)
+    print(pubkey)
+    print(type(sig))
+    print(type(pubkey))
+    tx_local = copy.deepcopy(tx_dict)
+    for i in tx_local['inputs']:
+        i['sig'] = None
+
+    pubkey_obj = Ed25519PublicKey.from_public_bytes(bytes.fromhex(str(pubkey)))
+    sig_bytes = bytes.fromhex(str(sig))
+
+    return Ed25519PublicKey.verify(pubkey_obj, sig_bytes, bytes.fromhex(obj.get_objid(tx_local)))
+
+
+def sign_input(txid, pri_key):
+    private_key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(pri_key))
+    signature = private_key.sign(bytes.fromhex(txid))
+    return signature.hex()
+
+
+
+def create_input(tx, pri_key):
+    obj_id = obj.get_objid(tx[0])
+    
+
+    input = {
+        "outpoint": {
+            "txid": obj_id,
+            "index": 0
+        },
+        "sig": None
+    }
+    sig = sign_input(obj_id, pri_key)
+    input["sig"] = sig
+    tx_id = obj.get_objid(input)
+    return input, tx_id
+
+def create_output(value):
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    pubkey = public_key.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw
+    ).hex()
+    tx = {"pubkey": pubkey, "value": value}
+    pri_key = private_key.private_bytes( encoding=serialization.Encoding.Raw, format=serialization.PrivateFormat.Raw, encryption_algorithm=serialization.NoEncryption()).hex()
+    return tx, pri_key
+
+def create_transaction(inputs, outputs):
+    tx = {
+        "inputs": inputs,
+        "outputs": outputs,
+        "type": "transaction"
+    }
+    obj_id = obj.get_objid(tx)
+    return tx, obj_id
+
+import constants as c
+import sys
+id_orig = "00002fa163c7dab0991544424b9fd302bb1782b185e5a3bbdf12afb758e57dee"
+import itertools
+
+
+def create_block(transactions, created, miner, note, previd):
+    txids = []
+    nonce = "1000000000000000000000000000000000000000000000000000000001aaf999"
+    for tx in transactions:
+        txids.append(obj.get_objid(tx))
+    block = {
+        "T": "0000abc000000000000000000000000000000000000000000000000000000000",
+        "created": created,
+        "miner": miner,
+        "nonce": nonce,
+        "note": note,
+        "previd": previd,
+        "txids": txids,
+        "type": "block"}
+    return block, obj.get_objid(block)
+
+def mine_block(transaction,miner,note = None, previd = None):
+    block, block_id = create_block(transaction, miner, note, previd)
+    sys.set_int_max_str_digits(100000000)
+    while block_id[:4] != c.BLOCK_TARGET:
+        block["nonce"] = str(int(block["nonce"], 16) + 1)
+        block_id = obj.get_objid(block)
+    return block, block_id
+
+
+
+
+
+
+
+coinbase1, key_coinbase1, idcoinbase1 = create_transaction_coinbase(1,50000000000000)
+coinbase2, key_coinbase2, idcoinbase2 = create_transaction_coinbase(2, 50000000000000)
+coinbase3, key_coinbase3, idcoinbase3 = create_transaction_coinbase(4, 50000000000000)
+
+
+
+input_transaction_1, id_transaction_1 = create_input([coinbase1], key_coinbase1)
+output_transaction_1, pri_key_transaction_1 = create_output(coinbase1['outputs'][0]['value'])
+transaction_1, id_transaction_1 = create_transaction([input_transaction_1], [output_transaction_1])
+
+input_transaction_1_1, id_transaction_1_1 = create_input([transaction_1], pri_key_transaction_1)
+output_transaction_1_1, pri_key_transaction_1_1 = create_output(transaction_1['outputs'][0]['value'])
+transaction_1_1, id_transaction_1_1 = create_transaction([input_transaction_1_1], [output_transaction_1_1])
+
+input_transaction_1_2, id_transaction_1_2 = create_input([transaction_1_1], pri_key_transaction_1_1)
+output_transaction_1_2, pri_key_transaction_1_2 = create_output(transaction_1_1['outputs'][0]['value'])
+transaction_1_2, id_transaction_1_2 = create_transaction([input_transaction_1_2], [output_transaction_1_2])
+
+
+
+input_transaction_2, id_transaction_2 = create_input([coinbase2], key_coinbase2)
+output_transaction_2, pri_key_transaction_2 = create_output(coinbase2['outputs'][0]['value'])
+transaction_2, id_transaction_2 = create_transaction([input_transaction_2], [output_transaction_2])
+
+input_transaction_2_1, id_transaction_2_1 = create_input([transaction_2], pri_key_transaction_2)
+output_transaction_2_1, pri_key_transaction_2_1 = create_output(transaction_2['outputs'][0]['value'])
+transaction_2_1, id_transaction_2_1 = create_transaction([input_transaction_2_1], [output_transaction_2_1])
+
+
+
+
+input_transaction_3, id_transaction_3 = create_input([coinbase3], key_coinbase3)
+output_transaction_3, pri_key_transaction_3 = create_output(coinbase3['outputs'][0]['value'])
+transaction_3, id_transaction_3 = create_transaction([input_transaction_3], [output_transaction_3])
+
+input_transaction_3_1, id_transaction_2_1 = create_input([transaction_3], pri_key_transaction_3)
+output_transaction_3_1, pri_key_transaction_3_1 = create_output(transaction_3['outputs'][0]['value'])
+transaction_3_1, id_transaction_3_1 = create_transaction([input_transaction_3_1], [output_transaction_3_1])
+
+
+
+
+block1, id_block1= create_block([coinbase1], 1671148800, "miner", "block1", "00002fa163c7dab0991544424b9fd302bb1782b185e5a3bbdf12afb758e57dee")
+
+block2, id_block2 = create_block([coinbase2, transaction_1], 1671148801, "miner", "block2", str(id_block1))
+
+block3, id_block3 = create_block([transaction_2, transaction_1_1], 1671148808, "miner", "block3", str(id_block2))
+
+block4, id_block4 = create_block([coinbase3, transaction_2_1, transaction_1_2], 1671148803, "miner", "block4", str(id_block3))
+
+block5, id_block5 = create_block([transaction_3], 1671148804, "miner", "block5", str(id_block4))
+
+list_blocks = [(coinbase1, idcoinbase1), (coinbase2, idcoinbase2), (coinbase3, idcoinbase3), 
+               (transaction_1, id_transaction_1), (transaction_1_1, id_transaction_1_1), (transaction_1_2, id_transaction_1_2),
+               (transaction_2, id_transaction_2), (transaction_2_1, id_transaction_2_1),
+               (transaction_3, id_transaction_3),
+               (block1, id_block1), (block2, id_block2), (block3, id_block3), (block4, id_block4), (block5, id_block5)]
+
+print(f'{idcoinbase1}       {coinbase1}')
+print(f'{idcoinbase2}       {coinbase2}')
+print(f'{idcoinbase3}       {coinbase3}')
+print(f'{id_transaction_1}       {transaction_1}')
+print(f'{id_transaction_1_1}       {transaction_1_1}')
+print(f'{id_transaction_1_2}       {transaction_1_2}')
+print(f'{id_transaction_2}       {transaction_2}')
+print(f'{id_transaction_2_1}       {transaction_2_1}')
+print(f'{id_transaction_3}       {transaction_3}')
+print(f'{id_block1}     {block1}')
+print(f'{id_block2}     {block2}')
+print(f'{id_block3}     {block3}')
+print(f'{id_block4}     {block4}')
+print(f'{id_block5}     {block5}')
+
+import objects
+
+bool = objects.verify_tx_signature(transaction_1, transaction_1['inputs'][0]['sig'], coinbase1['outputs'][0]['pubkey'])
+
+hi = verify_tx_signature(transaction_1, transaction_1['inputs'][0]['sig'], coinbase1['outputs'][0]['pubkey'])
+print(hi)
+print(bool)
+
+# hi = insert_DB(list_blocks)
+
+def insert_DB(list_blocks):
+    con = sqlite3.connect(const.DB_NAME)
+    try:
+        cur = con.cursor()
+        for i in range(len(list_blocks)):
+            cur.execute("INSERT INTO objects VALUES(?, ?)", (list_blocks[i][1], list_blocks[i][0]))
+
+    except Exception as e:
+        con.rollback()
+        print(str(e))
+    finally:
+        con.close()
+    return 

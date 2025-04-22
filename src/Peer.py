@@ -1,49 +1,32 @@
 import ipaddress
-from typing import Self
 
 """
 host
-host_formated == host for hostname and ipv4
+host_formated == host for hostname and ipv4,
+              == bracket wrapped ipv6 addres
 """
 class Peer:
-    def validate_domain_name(self, dn: str) -> bool:
-        # Conditions taken from project overview 5.3
-        if not (3 <= len(dn) <= 50):
-            return False
-    
-        if '.' not in dn[1:-1]:
-            return False
-
-        atLeastOneLetter = False
-
-        for char in dn:
-            if not (char.isalnum() or char in ['.', '-', '_']):
-                return False
-            
-            if char.isalpha():
-                atLeastOneLetter = True
-
-        return atLeastOneLetter
-    
-
-    def validate_host(self, host: str):
+    def __init__(self, host_str, port:int):
+        self.port = port
+        self.isBootstrap = False # indicates if this is one of your hardcoded bootstrap nodes
         try:
-            ipaddress.IPv4Address(host)
-        except ipaddress.AddressValueError:
-            if not self.validate_domain_name(host):
-                raise ValueError(f"Could not create Peer! Invalid address: {host}")
-            
-    def validate_port(self, port: int):
-        if not (1 <= port <= 65535):
-            raise ValueError(f"Could not create Peer! Invalid port: {port}")
+            ip = None
+            ip = ipaddress.ip_address(host_str)
 
-    def __init__(self, host_str: str, port: int):
-        self.validate_host(host_str)
-        self.validate_port(int(port))
+            self.host = ip.compressed
 
-        self.port = int(port)
-        self.host_formated = host_str
-        self.host = host_str
+            # ipv4
+            self.host_formated = self.host
+
+
+        # not an ipv, dns name
+        except:
+            # TODO: validate hostname
+            self.host = host_str
+            self.host_formated = host_str
+
+    def tagBootstrap(self):
+        self.isBootstrap = True
 
     def __str__(self) -> str:
         return f"{self.host_formated}:{self.port}"
@@ -53,16 +36,7 @@ class Peer:
             and self.port == o.port
 
     def __hash__(self) -> int:
-        return hash((self.host, self.port))
+        return (self.port, self.host).__hash__()
 
     def __repr__(self) -> str:
         return f"Peer: {self}"
-    
-    @staticmethod
-    def json_encoder(obj: list | Self):
-        if isinstance(obj, Peer):
-            return str(obj)
-        elif isinstance(obj, list):
-            return [Peer.json_encoder(peer) for peer in obj]
-        
-        raise TypeError(f"Object is not of type list or Peer!")

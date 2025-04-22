@@ -1,13 +1,11 @@
-Your submission will be graded by executing the following steps:
+If you download the project and have it in .tar format, please run the following commands to run the code.
 
 ```
-    tar -xf <your_submission.tgx>
+    tar -xf <project.tgx>
     docker-compose build
     docker-compose up -d
-    # running test cases
+
+    # running the code as you wish 
+    
     docker-compose down
 ```
-
-You can use the Makefile target "submission" to create your submission archive. 
-Furthermore, you can execute "check-submission" to check if your node can be started properly by our grading framework.
-Note, however, that "check-submission" will only try to connect to port 18018 on localhost.
